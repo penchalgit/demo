@@ -1,0 +1,92 @@
+provider "aws" {
+  version = "~> 2.0"
+  region  = "${var.region}"
+  access_key = "${var.access_key}"
+  secret_key = "${var.secret_key}"
+}
+
+resource "aws_instance" "Orders" {
+  ami           = "${var.ec2_ami}"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "Order"
+  }
+}
+
+resource "aws_instance" "Payments" {
+  ami           = "${var.ec2_ami}"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "Payments"
+  }
+}
+
+### VPC Creation 
+
+resource "aws_vpc" "main" {
+  cidr_block       = "${var.vpc_cidr}"
+  instance_tenancy = "default"
+
+  tags = {
+    Name = "main"
+  }
+}
+
+### Sub_net Creation 
+
+resource "aws_subnet" "subnets" {
+  count = "${length(var.azones)}"
+  availability_zone = "${element(var.azones,count.index)}"
+  vpc_id     = "${aws_vpc.main.id}"
+  cidr_block = "${element(var.subnet_cidr,count.index)}"
+
+  tags = {
+    Name = "subnet-${count.index+1}"
+  }
+}
+
+### security_group
+
+resource "aws_security_group" "my-webserver" {
+  name        = "webserver"
+  description = "Allow HTTP from Anywhere"
+  vpc_id      = "${aws_vpc.main.id}"
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  
+}
+
+resource "aws_security_group" "webserver1" {
+  name        = "webserver1"
+  description = "Allow TLS inbound traffic"
+  vpc_id      = "${aws_vpc.main.id}"
+
+  ingress {
+    description = "TLS from VPC"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main.cidr_block]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  }
+
